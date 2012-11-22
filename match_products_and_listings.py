@@ -96,8 +96,6 @@ def store_product(products_store, product):
         products_store[manufacturer_name] = [family]
 
 def match_and_store(matches_store, products_store, listing):
-    #Drop all listings with a plus
-    #drop listings with price far off
     matched_manufacturer = None
     matched_family = None
     matched_product = None
@@ -108,13 +106,11 @@ def match_and_store(matches_store, products_store, listing):
         if matched_manufacturer:
             break
 
-    #Manufacturer not found, return
     if matched_manufacturer == None:
         return
 
-    #Constraint 1
-    #Check product listing includes peripherals, i.e. memory, lens, pack
-    #That is listing.title includes the additional '+' character
+    #Constraint - Ignore when '+' appears in description
+    #Such listing genearlly lists price for product + peripherals
     pattern_plus_sign = re.compile('\+')
     match_plus_sign = pattern_plus_sign.search(listing.get('title'))
     if match_plus_sign:
@@ -157,13 +153,15 @@ def match_strings(pattern, text):
     if pattern == None or text == None:
         return None
 
-    #
+    #Strip most non-alphanumeric characters
+    pattern_strip_noise = re.compile('[\-_\+=\(\):,&!\\\"\'\/]')
+    noiseless_pattern = re.sub(pattern_strip_noise, "", pattern)
+    noiseless_text = re.sub(pattern_strip_noise, "", text)
 
-    #Remove non-alphanumeric characters
-    pattern_strip_noise = re.compile('[-_+\.=\s():,&!\\ \" \'"\/]')
-
-    flat_pattern = re.sub(pattern_strip_noise, " ", pattern)
-    flat_text = re.sub(pattern_strip_noise, " ", text)
+    #Convert [.-_] to spaces
+    pattern_replace_with_spaces = re.compile('[\.]')
+    flat_pattern = re.sub(pattern_replace_with_spaces, " ", noiseless_pattern)
+    flat_text = re.sub(pattern_replace_with_spaces, " ", noiseless_text)
 
     pattern_flat_pattern = re.compile(flat_pattern, re.IGNORECASE)
     match_flat_pattern = pattern_flat_pattern.search(flat_text)
