@@ -56,12 +56,7 @@ def process(argv):
     RunStats.products_matched = len(matches_store)
         
     for k in matches_store.keys():
-        l = matches_store[k]
-        print 'bla'
-        print len(l)
-        print l
-        #print l.size()
-        RunStats.listings_matched += len(l)
+        RunStats.listings_matched += len(matches_store[k])
 
     stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
              'listings matched: ' + str(RunStats.listings_matched) + '\n')
