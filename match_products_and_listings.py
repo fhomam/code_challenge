@@ -163,6 +163,10 @@ def match_strings(pattern, text):
     flat_pattern = re.sub(pattern_replace_with_spaces, " ", noiseless_pattern)
     flat_text = re.sub(pattern_replace_with_spaces, " ", noiseless_text)
 
+    #Pattern with one optional character between each
+
+    for c in 
+
     pattern_flat_pattern = re.compile(flat_pattern, re.IGNORECASE)
     match_flat_pattern = pattern_flat_pattern.search(flat_text)
 

@@ -6,6 +6,7 @@ import json
 import re
 import io
 import pprint
+import string
 
 class Usage(Exception):
     def __init__(self, msg):
@@ -69,10 +70,6 @@ def process(argv):
         stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
                  'listings matched: ' + str(RunStats.listings_matched) + '\n')
         print (stats)
-            
-
-        #stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
-        #         'listings matched: ' + str(RunStats.listings_matched) + '\n')
 
 def store_product(products_store, product):
     family_name = product.get('family') #None when key not present
@@ -124,15 +121,16 @@ def match_and_store(matches_store, products_store, listing):
     
     if matched_family:
         for p in f.products:
-            #For model add $ to pattern to match last character
-            matched_product = match_strings (p.get('model') + '$', listing.get('title'))
+            pattern_model = get_product_model_pattern(p.get('model'))
+            matched_product = match_strings (pattern_model, listing.get('title'))
             if matched_product:
                 matched_product = p #Assign to Product dict
                 break
     else: #If _family not defined, search all product models for manufacturer
         for f in products_store[matched_manufacturer]:
             for p in f.products:
-                matched_product = match_strings (p.get('model'), listing.get('title'))
+                pattern_model = get_product_model_pattern(p.get('model'))
+                matched_product = match_strings (pattern_model, listing.get('title'))
                 if matched_product:
                     matched_product = p #Assign to Product dict
                     break
@@ -156,19 +154,10 @@ def match_strings(pattern, text):
 
     #Strip most non-alphanumeric characters
     pattern_strip_noise = re.compile('[\-_\+=\(\):,&!\\\"\'\/]')
-    noiseless_pattern = re.sub(pattern_strip_noise, "", pattern)
-    noiseless_text = re.sub(pattern_strip_noise, "", text)
-
-    #Convert [.-_] to spaces
-    pattern_replace_with_spaces = re.compile('[\.]')
-    flat_pattern = re.sub(pattern_replace_with_spaces, " ", noiseless_pattern)
-    flat_text = re.sub(pattern_replace_with_spaces, " ", noiseless_text)
-
+    flat_pattern = re.sub(pattern_strip_noise, "", pattern)
+    flat_text = re.sub(pattern_strip_noise, "", text)
+    
     print '-------------'
-    print noiseless_pattern
-    print '\n'
-    print noiseless_text
-    print '\n'
     print flat_pattern
     print '\n'
     print flat_text
@@ -182,6 +171,12 @@ def match_strings(pattern, text):
         return pattern
     else:
         return None
+
+#Constraint - Enforce first and last character matching, remove spaces
+def get_product_model_pattern(model):
+    model = "".join(model.split())
+    pattern_model = '^' + model + '$'
+    return pattern_model
 
 if __name__ == "__main__":
     sys.exit(main())
