@@ -8,10 +8,6 @@ import io
 import pprint
 import string
 
-class Usage(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-
 class ProductFamily:
     def __init__(self, family_name):
         self.family_name = family_name
@@ -24,62 +20,65 @@ class RunStats:
 def main(argv=None):
     if argv is None:
         argv = sys.argv
-    try:
-        try:
-            opts, args = getopt.getopt(argv[1:], "h", ["help"])
-        except getopt.error, msg:
-            raise Usage(msg)
-        process(argv)
-    except Usage, err:
-        print >>sys.stderr, err.msg
-        print >>sys.stderr, "for help use --help"
-        return 2
 
-def process(argv):
     if (len(argv) < 3 ):
-        msg = ("-- Please specify input data and an output file:\n"
-            +  "-- e.g.\"script.py input.txt output.txt\"")
+        msg = ("-- Please specify input data textfiles\n"
+            +  "-- e.g.\"match.py products.txt listings.txt\"")
         print msg
     else:
-        #Process and store products
-        products_store = {}
-        products = open(argv[1], 'r')
+        process (argv)
+
+    sys.exit(0)
+
+def process(argv):
+    #Process and store products
+    products_store = {}
+    products = open(argv[1], 'r')
+    products_line = products.readline()
+    while products_line:
+        product = json.loads(products_line)
+        store_product(products_store, product)
         products_line = products.readline()
-        while products_line:
-            product = json.loads(products_line)
-            store_product(products_store, product)
-            products_line = products.readline()
 
-        #Match listings to products
-        matches_store = {}
-        listings = open(argv[2], 'r')
+    #Match listings to products
+    matches_store = {}
+    listings = open(argv[2], 'r')
+    listings_line = listings.readline()
+    while listings_line:
+        listing = json.loads(listings_line)
+        match_and_store(matches_store, products_store, listing)
         listings_line = listings.readline()
-        #i = 0
-        while listings_line:
-            listing = json.loads(listings_line)
-            match_and_store(matches_store, products_store, listing)
-            listings_line = listings.readline()
 
-        pprint.pprint(matches_store)
+    #Output results to textfile
+    pprint.pprint(matches_store)
 
-        #Print Stats
-        RunStats.products_matched = len(matches_store)
-        for k in matches_store.keys():
-            RunStats.listings_matched += len(k) 
+    #Print Stats
+    RunStats.products_matched = len(matches_store)
+        
+    for k in matches_store.keys():
+        l = matches_store[k]
+        print 'bla'
+        print len(l)
+        print l
+        #print l.size()
+        RunStats.listings_matched += len(l)
 
-        stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
-                 'listings matched: ' + str(RunStats.listings_matched) + '\n')
-        print (stats)
+    stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
+             'listings matched: ' + str(RunStats.listings_matched) + '\n')
+    print (stats)
 
+#Store products in {"manufacturer":[ProductFamily]}
 def store_product(products_store, product):
     family_name = product.get('family') #None when key not present
     manufacturer_name = product.get('manufacturer')
     family = ProductFamily(family_name)
     family.products.append(product)
 
+    #Check if manufacturer already in store
     if manufacturer_name in products_store:
         families = products_store.get(manufacturer_name)
         family_found = False
+        #Check if ProductFamily already exists
         for fam in families:
             if fam.family_name == family_name:
 
