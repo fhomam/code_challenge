@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import json
 import re
 import pprint
 import codecs
+if sys.version_info < (2,6):
+    import simplejson as json
+else:
+    import json
 
 PRINT_STATS = True
 
@@ -66,7 +69,6 @@ def process(argv):
         listings_line = listings.readline()
 
     #Print results
-    #print_matches(matches_store)
     output_matches(matches_store)
 
     #Print Stats
@@ -206,10 +208,16 @@ def output_matches(matches_store):
     matches = matches_store.items()
     output_file = codecs.open('results.txt', 'w', 'utf-8')
     for m in matches:
-        match = {m[0]:m[1]}
-        match_str = json.dumps(match)
-        output_file.write(match_str.decode('unicode-escape'))
+        match = {"product_name": m[0], "listings":m[1]}
+        match_json_string = json.dumps(match, ensure_ascii=False)
+        #match_str_decoded = (str(match)).decode('unicode-escape')
+        
+        output_file.write(match_json_string)
         output_file.write('\n')
+
+#def esape_json_double_quotes(source):
+
+
 
 if __name__ == "__main__":
     sys.exit(main())
