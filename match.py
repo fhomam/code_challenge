@@ -210,14 +210,8 @@ def output_matches(matches_store):
     for m in matches:
         match = {"product_name": m[0], "listings":m[1]}
         match_json_string = json.dumps(match, ensure_ascii=False)
-        #match_str_decoded = (str(match)).decode('unicode-escape')
-        
         output_file.write(match_json_string)
         output_file.write('\n')
-
-#def esape_json_double_quotes(source):
-
-
 
 if __name__ == "__main__":
     sys.exit(main())
