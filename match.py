@@ -1,12 +1,17 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 import sys
-import getopt
 import json
 import re
-import io
 import pprint
-import string
+import codecs
+
+PRINT_STATS = True
+
+class Rules:
+    filter_additional_items = True
+    filter_terms = [u'for', u'pour', u'für']
 
 class ProductFamily:
     def __init__(self, family_name):
@@ -14,8 +19,19 @@ class ProductFamily:
         self.products = []
 
 class RunStats:
-    products_matched = 0
-    listings_matched = 0
+    def __init__(self):
+        self.products_matched = 0
+        self.listings_matched = 0
+
+    def get_stats(self, matches_store):
+        self.products_matched = len(matches_store)
+        for k in matches_store.keys():
+            self.listings_matched += len(matches_store[k])
+
+    def __repr__(self):
+        stats = ('products matched: ' + str(self.products_matched) + '\n' +
+                 'listings matched: ' + str(self.listings_matched) + '\n')
+        return stats
 
 def main(argv=None):
     if argv is None:
@@ -49,18 +65,15 @@ def process(argv):
         match_and_store(matches_store, products_store, listing)
         listings_line = listings.readline()
 
-    #Output results to textfile
-    pprint.pprint(matches_store)
+    #Print results
+    #print_matches(matches_store)
+    output_matches(matches_store)
 
     #Print Stats
-    RunStats.products_matched = len(matches_store)
-        
-    for k in matches_store.keys():
-        RunStats.listings_matched += len(matches_store[k])
-
-    stats = ('products matched: ' + str(RunStats.products_matched) + '\n' +
-             'listings matched: ' + str(RunStats.listings_matched) + '\n')
-    print (stats)
+    if (PRINT_STATS):
+        stats = RunStats()
+        stats.get_stats(matches_store)
+        print stats
 
 #Store products in {"manufacturer":[ProductFamily]}
 def store_product(products_store, product):
@@ -86,88 +99,116 @@ def store_product(products_store, product):
     else:
         products_store[manufacturer_name] = [family]
 
+#Match product component strings to listing titles
 def match_and_store(matches_store, products_store, listing):
-    matched_manufacturer = None
-    matched_family = None
-    matched_product = None
-    matched_product_name = None
+    #Discard listings with peripheral items, indicated by '+'
+    if Rules.filter_additional_items:
+        pattern_plus_sign = re.compile(r'\+')
+        match_plus_sign = pattern_plus_sign.search(listing.get('title'))
+        if match_plus_sign:
+            return
 
-    for k in products_store.keys():
-        matched_manufacturer = match_strings(k, listing.get('manufacturer'))
-        if matched_manufacturer:
-            break
+    if Rules.filter_terms:
+        for w in Rules.filter_terms:
+            if w in listing.get('title'):
+                return
 
-    if matched_manufacturer == None:
+    manufacturer = match_manufacturer(products_store, listing)
+    if not manufacturer:
         return
 
-    #Constraint - Ignore when '+' appears in description
-    #Such listing genearlly lists price for product + peripherals
-    pattern_plus_sign = re.compile(r'\+')
-    match_plus_sign = pattern_plus_sign.search(listing.get('title'))
-    if match_plus_sign:
-        return
-    
-    for f in products_store[matched_manufacturer]:
-        matched_family = match_strings(f.family_name, listing.get('title'))
-        if matched_family:
-            matched_family = f #Assign to ProductFamily object
-            break
-    
-    if matched_family:
-        for p in matched_family.products:
-            pattern_model = get_product_model_pattern(p.get('model'))
-            matched_product = match_strings (pattern_model, listing.get('title'))
-            if matched_product:
-                matched_product = p #Assign to Product dict
-                break
-                    
-    else: #If _family not defined, search all product models for manufacturer
-        for f in products_store[matched_manufacturer]:
-            for p in f.products:
-                pattern_model = get_product_model_pattern(p.get('model'))
-                matched_product = match_strings (pattern_model, listing.get('title'))
-                if matched_product:
-                    matched_product = p #Assign to Product dict
-                    break
+    family = match_family(products_store, listing, manufacturer)
+    product = match_product(products_store, listing, manufacturer, family)
 
-    if matched_product == None:
+    if not product:
         return
 
-    #Add or append product, listing pair to matches store
-    matched_product_name = matched_product['product_name']
-    if matched_product_name in matches_store:
-        listings = matches_store[matched_product_name]
-        listings.append(listing)
-    else:
-        matches_store [matched_product_name] = [listing]
+    store_match(matches_store, product, listing)
 
-#Match two strings, if matched return the pattern string else None
+#Match if pattern is contained in *cleaned up* text, returns pattern
 def match_strings(pattern, text):
     #When either is None, assume no match
     if pattern == None or text == None:
         return None
 
-    #Strip most non-alphanumeric characters
-    #pattern_strip_noise = re.compile(r'[\-_\+=\(\):,&!\\\"\'\/]')
-    #pattern_strip_noise = re.compile(r'[\+=\(\):,&!\\\"\'\/]')
-    #flat_pattern = re.sub(pattern_strip_noise, "", pattern)
-    #flat_text = re.sub(pattern_strip_noise, "", text)
+    #Clean up the strings
+    noise = re.compile(r'[\-_\+=\(\):,&!\\\"\'\/]')
+    pattern = re.sub(noise, '', pattern)
+    text = re.sub(noise, '', text)
 
-    flat_pattern = pattern
-    flat_text = text
-
-    pattern_flat_pattern = re.compile(flat_pattern, re.IGNORECASE)
-    match_flat_pattern = pattern_flat_pattern.search(flat_text)
-
-    if match_flat_pattern:
+    re_pattern = re.compile(pattern, re.IGNORECASE)
+    if re_pattern.search(text):
         return pattern
-    else:
+
+def exact_match_strings(pattern, text):
+    if pattern == None or text == None:
         return None
 
-#Constraint - Enforce first and last character matching, remove spaces
-def get_product_model_pattern(model):
-    model = "".join(model.split())
-    return model
+    #Convert dashes to spaces in pattern
+    dashes = re.compile(r'[\-]')
+    pattern = re.sub(dashes, ' ', pattern)
+
+    #Now we match on the word boundry
+    pattern_words = pattern.split()
+    for w in pattern_words:
+        re_pattern = re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+        match = re_pattern.search(text)
+        if not match:
+            return False
+
+    return True
+
+def match_manufacturer(products_store, listing):
+    for k in products_store.keys():
+        match = match_strings(k, listing.get('manufacturer'))
+        if match:
+            return match
+    return None
+
+def match_family(products_store, listing, manufacturer):
+    for f in products_store[manufacturer]:
+        match = match_strings(f.family_name, listing.get('title'))
+        if match:
+            return f
+    return None
+
+def match_product(products_store, listing, manufacturer, family):
+    if family:
+        for p in family.products:
+            match = exact_match_strings(p.get('model'), listing.get('title'))
+            if match:
+                return p
+    else:
+        for f in products_store[manufacturer]:
+            for p in f.products:
+                match = exact_match_strings(p.get('model'), listing.get('title'))
+                if match:
+                    return p
+
+    return None
+
+def store_match(matches_store, product, listing):
+    product_name = product['product_name']
+    if product_name in matches_store:
+        listings = matches_store[product_name]
+        listings.append(listing)
+    else:
+        matches_store [product_name] = [listing]
+
+def print_matches(matches_store):
+    matches = matches_store.items()
+    for m in matches:
+        match = {m[0]:m[1]}
+        print json.dumps(match)
+
+def output_matches(matches_store):
+    matches = matches_store.items()
+    output_file = codecs.open('results.txt', 'w', 'utf-8')
+    for m in matches:
+        match = {m[0]:m[1]}
+        match_str = str(json.dumps(match))
+        output_file.write(match_str.encode('utf-8'))
+        output_file.write('\n')
 
 if __name__ == "__main__":
     sys.exit(main())
