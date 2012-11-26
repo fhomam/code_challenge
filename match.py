@@ -10,8 +10,8 @@ import codecs
 PRINT_STATS = True
 
 class Rules:
-    filter_additional_items = True
-    filter_terms = [u'for', u'pour', u'für']
+    filter_additional_items = True #to filter products + peripherals
+    filter_terms = [u'for', u'pour', u'für'] #to filter product accessories
 
 class ProductFamily:
     def __init__(self, family_name):
@@ -201,13 +201,14 @@ def print_matches(matches_store):
         match = {m[0]:m[1]}
         print json.dumps(match)
 
+#Output to file and encode to literal strings
 def output_matches(matches_store):
     matches = matches_store.items()
     output_file = codecs.open('results.txt', 'w', 'utf-8')
     for m in matches:
         match = {m[0]:m[1]}
-        match_str = str(json.dumps(match))
-        output_file.write(match_str.encode('utf-8'))
+        match_str = json.dumps(match)
+        output_file.write(match_str.decode('unicode-escape'))
         output_file.write('\n')
 
 if __name__ == "__main__":
